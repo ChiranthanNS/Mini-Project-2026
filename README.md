@@ -339,3 +339,5 @@ This project is built for zero-configuration deployment on **Streamlit Community
 - Multi-language OCR support for regional language event posters (e.g., Hindi, Kannada, Tamil).
 - Support for exporting the newsletter in editable DOCX format in addition to PDF.
 - PDF theme selector allowing faculty to toggle between Classic Academic, Modern Minimal, and Magazine layout styles.
+
+<!-- update cache -->
