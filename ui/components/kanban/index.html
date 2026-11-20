@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Event Kanban Board</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    body {
+      background-color: #f8fafc;
+      padding: 12px;
+      overflow-x: auto;
+    }
+    .kanban-board {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      min-width: 100%;
+      padding-bottom: 20px;
+    }
+    .kanban-col {
+      flex: 0 0 280px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      max-height: 80vh;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .col-header {
+      padding: 12px 14px;
+      border-bottom: 2px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f8fafc;
+      border-top-left-radius: 10px;
+      border-top-right-radius: 10px;
+    }
+    .col-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #1e293b;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .col-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 12px;
+      background: #e2e8f0;
+      color: #475569;
+    }
+    .col-cards {
+      padding: 12px;
+      overflow-y: auto;
+      min-height: 120px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex-grow: 1;
+    }
+    .event-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px;
+      cursor: grab;
+      transition: all 0.15s ease;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      position: relative;
+    }
+    .event-card:hover {
+      border-color: #94a3b8;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+      transform: translateY(-1px);
+    }
+    .event-card.sortable-ghost {
+      opacity: 0.4;
+      background: #f1f5f9;
+      border: 2px dashed #3b82f6;
+    }
+    .event-card.sortable-chosen {
+      cursor: grabbing;
+    }
+    .card-photo {
+      width: 100%;
+      height: 110px;
+      object-fit: cover;
+      border-radius: 5px;
+      margin-bottom: 8px;
+      background: #f1f5f9;
+    }
+    .card-photo-placeholder {
+      width: 100%;
+      height: 50px;
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: #94a3b8;
+      margin-bottom: 8px;
+    }
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #0f172a;
+      line-height: 1.3;
+      margin-bottom: 5px;
+    }
+    .card-date {
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .card-desc {
+      font-size: 11px;
+      color: #475569;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    .card-meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid #f1f5f9;
+    }
+    .confidence-badge {
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+    }
+    .conf-high { background: #dcfce7; color: #15803d; }
+    .conf-med { background: #fef9c3; color: #854d0e; }
+    .conf-low { background: #fee2e2; color: #b91c1c; }
+    .needs-review-tag {
+      background: #ffedd5;
+      color: #c2410c;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 5px;
+      border-radius: 3px;
+      display: inline-block;
+      margin-bottom: 4px;
+    }
+    .empty-col-notice {
+      color: #94a3b8;
+      font-size: 12px;
+      text-align: center;
+      padding: 30px 10px;
+      font-style: italic;
+    }
+    .drag-instruction {
+      font-size: 11px;
+      color: #64748b;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+  </style>
+  <!-- Inlined Sortable.js to guarantee 100% offline support -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+</head>
+<body>
+  <div class="drag-instruction">
+    <span>💡 <b>Drag & Drop Enabled:</b> Drag cards between categories or reorder within a column. Changes sync immediately.</span>
+  </div>
+  <div class="kanban-board" id="kanbanBoard"></div>
+
+  <script>
+    // Streamlit Component Protocol
+    function sendMessageToStreamlit(type, data) {
+      window.parent.postMessage({
+        isStreamlitMessage: true,
+        type: type,
+        ...data
+      }, "*");
+    }
+
+    function setComponentValue(value) {
+      sendMessageToStreamlit("streamlit:setComponentValue", { value: value });
+    }
+
+    function setFrameHeight(height) {
+      sendMessageToStreamlit("streamlit:setFrameHeight", { height: height || document.body.scrollHeight + 30 });
+    }
+
+    let boardData = null;
+    let sortableInstances = [];
+
+    function renderBoard(data) {
+      if (!data) return;
+      boardData = data;
+      const categories = data.categories || [];
+      const events = data.events || [];
+      const colors = data.colors || {};
+
+      const boardEl = document.getElementById("kanbanBoard");
+      boardEl.innerHTML = "";
+
+      // Cleanup prior Sortable instances
+      sortableInstances.forEach(s => s.destroy());
+      sortableInstances = [];
+
+      categories.forEach(cat => {
+        const catEvents = events.filter(e => e.category === cat);
+        const colColor = colors[cat] || "#475569";
+
+        const colEl = document.createElement("div");
+        colEl.className = "kanban-col";
+        colEl.dataset.category = cat;
+
+        const headerEl = document.createElement("div");
+        headerEl.className = "col-header";
+        headerEl.style.borderTop = `3px solid ${colColor}`;
+        headerEl.innerHTML = `
+          <div class="col-title">
+            <span style="color: ${colColor}; font-size: 14px;">●</span>
+            ${cat}
+          </div>
+          <span class="col-badge">${catEvents.length}</span>
+        `;
+        colEl.appendChild(headerEl);
+
+        const cardsEl = document.createElement("div");
+        cardsEl.className = "col-cards";
+        cardsEl.dataset.category = cat;
+
+        if (catEvents.length === 0) {
+          const emptyNotice = document.createElement("div");
+          emptyNotice.className = "empty-col-notice";
+          emptyNotice.innerText = "Drop events here";
+          cardsEl.appendChild(emptyNotice);
+        }
+
+        catEvents.forEach(ev => {
+          const cardEl = document.createElement("div");
+          cardEl.className = "event-card";
+          cardEl.dataset.id = ev.id;
+          cardEl.dataset.category = cat;
+
+          let photoHtml = "";
+          if (ev.thumbnail_base64) {
+            photoHtml = `<img class="card-photo" src="data:image/jpeg;base64,${ev.thumbnail_base64}" alt="${ev.event_name}">`;
+          } else if (ev.has_image) {
+            photoHtml = `<div class="card-photo-placeholder">📷 ${ev.images ? ev.images.length : 1} Photograph(s)</div>`;
+          } else {
+            photoHtml = `<div class="card-photo-placeholder">No photograph</div>`;
+          }
+
+          let confClass = "conf-low";
+          if (ev.confidence_level === "HIGH") confClass = "conf-high";
+          else if (ev.confidence_level === "MEDIUM") confClass = "conf-med";
+
+          let reviewTag = ev.needs_review ? `<div class="needs-review-tag">⚠️ Needs Review</div>` : "";
+
+          cardEl.innerHTML = `
+            ${reviewTag}
+            ${photoHtml}
+            <div class="card-title">${escapeHtml(ev.event_name || "Untitled Event")}</div>
+            <div class="card-date">📅 ${escapeHtml(ev.date || "Date unspecified")}</div>
+            <div class="card-desc">${escapeHtml(ev.description || "")}</div>
+            <div class="card-meta-row">
+              <span class="confidence-badge ${confClass}">
+                ${Math.round((ev.confidence || 0) * 100)}% Conf.
+              </span>
+              <span style="color: #64748b; font-size: 10px;">
+                Src: ${escapeHtml(ev.classification_source || "keyword")}
+              </span>
+            </div>
+          `;
+          cardsEl.appendChild(cardEl);
+        });
+
+        colEl.appendChild(cardsEl);
+        boardEl.appendChild(colEl);
+
+        // Attach Sortable
+        if (typeof Sortable !== "undefined") {
+          const sortable = new Sortable(cardsEl, {
+            group: "events_kanban",
+            animation: 180,
+            ghostClass: "sortable-ghost",
+            chosenClass: "sortable-chosen",
+            draggable: ".event-card",
+            onEnd: function(evt) {
+              handleDropEvent(evt);
+            }
+          });
+          sortableInstances.push(sortable);
+        }
+      });
+
+      setFrameHeight();
+    }
+
+    function handleDropEvent(evt) {
+      const itemEl = evt.item;
+      const targetColEl = evt.to;
+      const sourceColEl = evt.from;
+      const eventId = itemEl.dataset.id;
+      const newCategory = targetColEl.dataset.category;
+      const oldCategory = sourceColEl.dataset.category;
+
+      // Extract new ordering across the entire board
+      const categoryAssignments = {};
+      const allCols = document.querySelectorAll(".col-cards");
+      
+      allCols.forEach(col => {
+        const catName = col.dataset.category;
+        const cardIds = [];
+        col.querySelectorAll(".event-card").forEach(c => {
+          if (c.dataset.id) {
+            cardIds.push(c.dataset.id);
+          }
+        });
+        categoryAssignments[catName] = cardIds;
+      });
+
+      // Send update to Streamlit
+      setComponentValue({
+        action: "drag_reorder",
+        moved_event_id: eventId,
+        old_category: oldCategory,
+        new_category: newCategory,
+        category_order_map: categoryAssignments,
+        timestamp: Date.now()
+      });
+    }
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // Streamlit message listener
+    window.addEventListener("message", function(event) {
+      if (event.data && event.data.type === "streamlit:render") {
+        renderBoard(event.data.args);
+      }
+    });
+
+    // Notify Streamlit ready
+    sendMessageToStreamlit("streamlit:componentReady", { apiVersion: 1 });
+  </script>
+</body>
+</html>
